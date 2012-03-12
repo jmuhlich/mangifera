@@ -4,29 +4,42 @@ import numpy as np
 import random
 
 pygame.init()
-screen = pygame.display.set_mode([320, 240])
+screen = pygame.display.set_mode((320, 240), 0, 8)
 
-pal_b = np.empty((256, 4), 'B')
-for i in range(256):
-    pal_b[i,:] = (i**3/0xFF**2, i**3/0xFF**2, i, 0xFF)
-pal = [int(c) for c in pal_b.view('<u4').flatten()]
+palette = np.zeros((256, 3), 'B')
+prange = np.array(range(0, 32))
+palette[prange,2] = prange<<1
+palette[prange+32,0] = prange<<3
+palette[prange+32,2] = 64 - (prange<<1)
+palette[prange+64,0] = 255
+palette[prange+64,1] = prange<<3
+palette[96:,0:2] = 255;
+palette[prange+96,2] = prange<<2;
+palette[prange+128,2] = 64 + (prange<<2);
+palette[prange+160,2] = 128 + (prange<<2);
+palette[prange+192,2] = 192 + prange;
+palette[prange+224,2] = 224 + prange;
+pygame.display.set_palette(palette)
 
-buf = np.zeros(screen.get_size(), dtype='B', order='F')
-
+last_fps_tick = 0
+clock = pygame.time.Clock()
 
 while pygame.event.poll().type != KEYDOWN:
+    pixels = pygame.surfarray.pixels2d(screen)
     for x in range(320):
-        r = random.randrange(0, 2)
-        buf[x,239] = 255 if r == 0 else 0;
-    buf[1:319,0:239] = (buf[0:318,1:240].astype('uint32') + buf[1:319,1:240] + buf[2:320,1:240]) / 3.1
-
-    screen.lock()
-    for y in range(240):
-        for x in range(320):
-            screen.set_at((x,y), pal[buf[x,y]])
-    screen.unlock()
+        r = random.random()
+        pixels[x,239] = 255 if r < .4 else 0;
+    pixels[1:319,0:239] = np.fmax(((pixels[1:319,0:239].astype('int') +
+                                    pixels[0:318,1:240] +
+                                    pixels[1:319,1:240] +
+                                    pixels[2:320,1:240]) >> 2) - 1,
+                                  0)
 
     pygame.display.update()
-    #pygame.time.delay(10)
+    clock.tick(60)
+    cur_tick = pygame.time.get_ticks()
+    if cur_tick >= last_fps_tick + 1000:
+        last_fps_tick = cur_tick
+        print 'FPS:', clock.get_fps()
 
 pygame.quit()
