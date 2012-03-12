@@ -35,8 +35,8 @@ while pygame.event.poll().type != KEYDOWN:
                                     pixels[2:320,1:240]) >> 2) - 1,
                                   0)
 
-    pygame.display.update()
     clock.tick(60)
+    pygame.display.flip()
     cur_tick = pygame.time.get_ticks()
     if cur_tick >= last_fps_tick + 1000:
         last_fps_tick = cur_tick
