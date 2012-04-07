@@ -9,6 +9,8 @@ def exit_game():
     sys.exit()
 
 pygame.init()
+screen = pygame.display.set_mode((640, 480))
+print pygame.display.Info()
 
 # load tiles
 tile_base = os.path.join('data', 'base')
@@ -16,16 +18,13 @@ tile_names = ('grass', 'dirt', 'sand', 'snow', 'water')
 tiles = []
 for name in tile_names:
     path = os.path.join(tile_base, name + '.png')
-    tiles.append(pygame.image.load(path))
+    tiles.append(pygame.image.load(path).convert_alpha())
 
 # create random world map
 np.random.seed(0)
 world_map = np.random.randint(len(tile_names) - 1, size=(100,100))
 # add a lake
 world_map[10:20, 3:7] = len(tile_names) - 1
-
-screen = pygame.display.set_mode((640, 480), 0, 24)
-print pygame.display.Info()
 
 last_fps_tick = 0
 clock = pygame.time.Clock()
