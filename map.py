@@ -13,18 +13,26 @@ screen = pygame.display.set_mode((640, 480))
 print pygame.display.Info()
 
 # load tiles
-tile_base = os.path.join('data', 'base')
-tile_names = ('grass', 'dirt', 'sand', 'snow', 'water')
+tile_base = 'data'
+tile_names = (('base', ('grass', 'dirt', 'sand', 'snow', 'water')),
+              ('wall', ('grass-outside-s', 'grass-straight-se',
+                        'grass-straight-sw')),
+              )
 tiles = []
-for name in tile_names:
-    path = os.path.join(tile_base, name + '.png')
-    tiles.append(pygame.image.load(path).convert_alpha())
+for group, names in tile_names:
+    for name in names:
+        path = os.path.join(tile_base, group, name + '.png')
+        tiles.append(pygame.image.load(path).convert_alpha())
 
 # create random world map
 np.random.seed(0)
-world_map = np.random.randint(len(tile_names) - 1, size=(100,100))
+world_map = np.random.randint(4, size=(100,100))
 # add a lake
-world_map[10:20, 3:7] = len(tile_names) - 1
+world_map[10:20, 2:6] = 4
+# add walls
+world_map[15, 8] = 5
+world_map[14, 9] = 6
+world_map[14, 8] = 7
 
 last_fps_tick = 0
 clock = pygame.time.Clock()
@@ -42,6 +50,8 @@ while True:
             # FIXME: this sx/xy math is out of control
             sx = x * 64 + (y & 1) * 32 - (camera[0] % 64) - (camera[1]/16&1)*32 + (camera[1]/16&wy&1)*64
             sy = (y >> 1) * 32 + (y & 1) * 16 - (camera[1] % 16)
+            sx -= tile.get_width() / 2 - 32
+            sy -= tile.get_height() - 31
             screen.blit(tile, (sx, sy))
 
     # handle events
