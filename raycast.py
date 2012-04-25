@@ -5,8 +5,9 @@ import math
 import sys
 
 def exit_game():
+    global done
     pygame.quit()
-    sys.exit()
+    done = True;
 
 pygame.init()
 screen_w = 640
@@ -70,7 +71,8 @@ planeY = 0.66
 rayDirX = np.zeros(1)
 rayDirY = np.zeros(1)
 
-while True:
+done = False
+while not done:
     screen.fill(0)
 
     for x in range(screen_w):
