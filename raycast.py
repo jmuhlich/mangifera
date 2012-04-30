@@ -62,101 +62,95 @@ dirY = 0
 planeX = 0
 planeY = 0.66
   
-rayDirX = np.zeros(1)
-rayDirY = np.zeros(1)
-
 def mainloop():
     global screen_w, screen_h, screen, last_fps_tick, clock, keys
     global mapWidth, mapHeight, worldMap, colors, colormap, defaultcolor
-    global color2, posX, posY, dirX, dirY, planeX, planeY, rayDirX, rayDirY
+    global color2, posX, posY, dirX, dirY, planeX, planeY
+
+    x = np.arange(0, screen_w, 1)
+    cameraX = 2.0 * x / screen_w - 1 # x-coordinate in camera space
+    stepX = np.empty(x.shape, dtype='int')
+    stepY = np.empty(x.shape, dtype='int')
+    sideDistX = np.empty(x.shape, dtype='float')
+    sideDistY = np.empty(x.shape, dtype='float')
+    perpWallDist = np.empty(x.shape, dtype='float')
+    side = np.empty(x.shape, dtype='int')
 
     done = False
     while not done:
         screen.fill(0)
 
-        for x in range(screen_w):
-            # calculate ray position and direction 
-            cameraX = 2 * x / float(screen_w) - 1 # x-coordinate in camera space
-            rayPosX = posX
-            rayPosY = posY
-            rayDirX[0] = dirX + planeX * cameraX
-            rayDirY[0] = dirY + planeY * cameraX
+        # calculate ray position and direction 
+        rayPosX = np.empty(x.shape)
+        rayPosX.fill(posX)
+        rayPosY = np.empty(x.shape)
+        rayPosY.fill(posY)
+        rayDirX = dirX + planeX * cameraX
+        rayDirY = dirY + planeY * cameraX
 
-            # which box of the map we're in  
-            mapX = int(rayPosX)
-            mapY = int(rayPosY)
+        # which box of the map we're in
+        mapX = rayPosX.astype('int')
+        mapY = rayPosY.astype('int')
 
-            # length of ray from current position to next x or y-side
-            #sideDistX
-            #sideDistY
+        # length of ray from one x or y-side to next x or y-side
+        deltaDistX = (1 + rayDirY**2 / rayDirX[0]**2) ** 0.5
+        deltaDistY = (1 + rayDirX**2 / rayDirY[0]**2) ** 0.5
 
-            # length of ray from one x or y-side to next x or y-side
-            deltaDistX = math.sqrt(1 + (rayDirY[0] * rayDirY[0]) / (rayDirX[0] * rayDirX[0]))
-            deltaDistY = math.sqrt(1 + (rayDirX[0] * rayDirX[0]) / (rayDirY[0] * rayDirY[0]))
-            #perpWallDist
+        # track wall hits
+        hit = np.empty(x.shape, dtype='bool')
+        hit.fill(False)
 
-            # what direction to step in x or y-direction (either +1 or -1)
-            #stepX
-            #stepY
+        # calculate step and initial sideDist
+        xneg = rayDirX < 0
+        n_xneg = np.logical_not(xneg)
+        stepX[xneg] = -1
+        stepX[n_xneg] = 1
+        sideDistX[xneg] = ((rayPosX - mapX) * deltaDistX)[xneg]
+        sideDistX[n_xneg] = ((mapX + 1.0 - rayPosX) * deltaDistX)[n_xneg]
+        yneg = rayDirY < 0
+        n_yneg = np.logical_not(yneg)
+        stepY[yneg] = -1
+        stepY[n_yneg] = 1
+        sideDistY[yneg] = ((rayPosY - mapY) * deltaDistY)[yneg]
+        sideDistY[n_yneg] = ((mapY + 1.0 - rayPosY) * deltaDistY)[n_yneg]
 
-            hit = False # was there a wall hit?
-            #side # was a NS or a EW wall hit?
-
-            # calculate step and initial sideDist
-            if rayDirX[0] < 0:
-                stepX = -1
-                sideDistX = (rayPosX - mapX) * deltaDistX
-            else:
-                stepX = 1
-                sideDistX = (mapX + 1.0 - rayPosX) * deltaDistX
-            if rayDirY[0] < 0:
-                stepY = -1
-                sideDistY = (rayPosY - mapY) * deltaDistY
-            else:
-                stepY = 1
-                sideDistY = (mapY + 1.0 - rayPosY) * deltaDistY
-
-            # perform DDA
-            while not hit:
+        # perform DDA
+        for i in range(len(x)):
+            while not hit[i]:
                 # jump to next map square, OR in x-direction, OR in y-direction
-                if sideDistX < sideDistY:
-                    sideDistX += deltaDistX
-                    mapX += stepX
-                    side = 0
+                if sideDistX[i] < sideDistY[i]:
+                    sideDistX[i] += deltaDistX[i]
+                    mapX[i] += stepX[i]
+                    side[i] = 0
                 else:
-                    sideDistY += deltaDistY
-                    mapY += stepY
-                    side = 1
+                    sideDistY[i] += deltaDistY[i]
+                    mapY[i] += stepY[i]
+                    side[i] = 1
                 # Check if ray has hit a wall
-                if worldMap[mapX,mapY] > 0:
-                    hit = True
+                if worldMap[mapX[i],mapY[i]] > 0:
+                    hit[i] = True
 
-            # Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
-            if side == 0:
-                perpWallDist = abs((mapX - rayPosX + (1 - stepX) / 2) / rayDirX[0])
-            else:
-                perpWallDist = abs((mapY - rayPosY + (1 - stepY) / 2) / rayDirY[0])
+        # Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
+        perpWallDist[side==0] = np.absolute((mapX - rayPosX + (1 - stepX) / 2) / rayDirX)[side==0]
+        perpWallDist[side==1] = np.absolute((mapY - rayPosY + (1 - stepY) / 2) / rayDirY)[side==1]
 
-            # Calculate height of line to draw on screen
-            lineHeight = abs(int(screen_h / perpWallDist))
+        # Calculate height of line to draw on screen
+        lineHeight = np.absolute((screen_h / perpWallDist).astype('int'))
 
-            # calculate lowest and highest pixel to fill in current stripe
-            drawStart = int(-lineHeight / 2 + screen_h / 2)
-            if drawStart < 0:
-                drawStart = 0;
-            drawEnd = int(lineHeight / 2 + screen_h / 2)
-            if drawEnd >= screen_h:
-                drawEnd = screen_h - 1
+        # calculate lowest and highest pixel to fill in current stripe
+        drawStart = np.fmax((-lineHeight / 2 + screen_h / 2).astype('int'), 0)
+        drawEnd = np.fmin((lineHeight / 2 + screen_h / 2).astype('int'), screen_h - 1)
 
+        for i in range(len(x)):
             # choose wall color
-            color = colormap.get(worldMap[mapX,mapY], defaultcolor)
+            color = colormap.get(worldMap[mapX[i],mapY[i]], defaultcolor)
 
             # give x and y sides different brightness
-            if side == 1:
+            if side[i] == 1:
                 color /= color2
 
             # draw the pixels of the stripe as a vertical line
-            pygame.gfxdraw.vline(screen, x, drawStart, drawEnd, color)
+            pygame.gfxdraw.vline(screen, x[i], drawStart[i], drawEnd[i], color)
 
         # handle events
         for event in pygame.event.get():
