@@ -93,8 +93,8 @@ def mainloop():
         mapY = rayPosY.astype('int')
 
         # length of ray from one x or y-side to next x or y-side
-        deltaDistX = (1 + rayDirY**2 / rayDirX[0]**2) ** 0.5
-        deltaDistY = (1 + rayDirX**2 / rayDirY[0]**2) ** 0.5
+        deltaDistX = (1 + rayDirY**2 / rayDirX**2) ** 0.5
+        deltaDistY = (1 + rayDirX**2 / rayDirY**2) ** 0.5
 
         # track wall hits
         hit = np.empty(x.shape, dtype='bool')
