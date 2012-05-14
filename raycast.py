@@ -1,6 +1,7 @@
 import pygame
 import pygame.gfxdraw
 import numpy as np
+import scipy.weave
 import math
 import sys
 
@@ -96,9 +97,8 @@ def mainloop():
         deltaDistX = (1 + rayDirY**2 / rayDirX**2) ** 0.5
         deltaDistY = (1 + rayDirX**2 / rayDirY**2) ** 0.5
 
-        # track wall hits
-        hit = np.empty(x.shape, dtype='bool')
-        hit.fill(False)
+        # was a NS or a EW wall hit?
+        side = np.empty(x.shape, dtype='bool')
 
         # calculate step and initial sideDist
         xneg = rayDirX < 0
@@ -115,20 +115,29 @@ def mainloop():
         sideDistY[n_yneg] = ((mapY + 1.0 - rayPosY) * deltaDistY)[n_yneg]
 
         # perform DDA
-        for i in range(len(x)):
-            while not hit[i]:
-                # jump to next map square, OR in x-direction, OR in y-direction
-                if sideDistX[i] < sideDistY[i]:
-                    sideDistX[i] += deltaDistX[i]
-                    mapX[i] += stepX[i]
-                    side[i] = 0
-                else:
-                    sideDistY[i] += deltaDistY[i]
-                    mapY[i] += stepY[i]
-                    side[i] = 1
-                # Check if ray has hit a wall
-                if worldMap[mapX[i],mapY[i]] > 0:
-                    hit[i] = True
+        scipy.weave.inline(
+            r"""
+            #line 120 "raycast.py"
+            int i;
+            for (i = 0; i < Nx[0]; ++i) {
+                while (1) {
+                    if (SIDEDISTX1(i) < SIDEDISTY1(i)) {
+                        SIDEDISTX1(i) += DELTADISTX1(i);
+                        MAPX1(i) += STEPX1(i);
+                        SIDE1(i) = 0;
+                    } else {
+                        SIDEDISTY1(i) += DELTADISTY1(i);
+                        MAPY1(i) += STEPY1(i);
+                        SIDE1(i) = 1;
+                    }
+                    if (WORLDMAP2(MAPX1(i),MAPY1(i)) > 0) {
+                        break;
+                    }
+                }
+            }
+            """,
+            ['x', 'sideDistX', 'sideDistY', 'deltaDistX', 'deltaDistY',
+             'mapX', 'mapY', 'stepX', 'stepY', 'worldMap', 'side'])
 
         # Calculate distance projected on camera direction (oblique distance will give fisheye effect!)
         perpWallDist[side==0] = np.absolute((mapX - rayPosX + (1 - stepX) / 2) / rayDirX)[side==0]
