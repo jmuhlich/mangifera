@@ -65,12 +65,23 @@ def mainloop():
         # render the map
         for wy in range(world_map.shape[1] - 1, -1, -1):
             for wx in range(world_map.shape[0]):
+
                 tile = tiles[world_map[wy,wx]]
-                sx, sy = world_to_screen(camera, wx, wy)
+
+                # make wx,wy relative to camera look-at point
+                rwx = wx - float(camera[0])
+                rwy = wy - float(camera[1])
+                # transform into screen space
+                sx = smx + (rwx + rwy) * grid_w_half
+                sy = smy + (rwx - rwy) * grid_h_half
+
+                # clip to viewport
                 if -grid_w < sx < screen_size[0] \
                         and -grid_h < sy < screen_size[1]:
+                    # offset tile properly
                     sx -= tile.get_width() / 2 - 32
                     sy -= tile.get_height() - 31
+                    # display on screen
                     screen.blit(tile, (sx, sy))
 
         # handle events
