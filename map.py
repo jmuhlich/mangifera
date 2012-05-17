@@ -76,7 +76,7 @@ def mainloop():
         # handle events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                exit_game()
+                return
             if event.type == pygame.KEYDOWN:
                 keys[event.key] = True
             if event.type == pygame.KEYUP:
@@ -84,7 +84,7 @@ def mainloop():
 
         # handle key states
         if keys.get(pygame.K_ESCAPE):
-            exit_game()
+            return
         if keys.get(pygame.K_LSHIFT) or keys.get(pygame.K_RSHIFT):
             camera_speed = camera_speed_fast
         else:
@@ -116,10 +116,6 @@ def world_to_screen(camera, wx, wy):
     return sx, sy
 
 
-def exit_game():
-    pygame.quit()
-    sys.exit()
-
-
 if __name__ == '__main__':
     mainloop()
+    pygame.quit()
