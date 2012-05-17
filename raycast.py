@@ -9,7 +9,6 @@ screen_w = 640
 screen_h = 480
 screen = pygame.display.set_mode((screen_w, screen_h))
 
-last_fps_tick = 0
 clock = pygame.time.Clock()
 
 keys = {}
@@ -50,25 +49,23 @@ colormap = dict((i + 1, pygame.Color(c)) for i, c in enumerate(colors))
 defaultcolor = pygame.Color('yellow')
 color2 = pygame.Color(2, 2, 2, 1)
 
-# x and y start position
-posX = 22
-posY = 12
-
-#initial direction vector
-dirX = -1
-dirY = 0
-
-# the 2d raycaster version of camera plane
-planeX = 0
-planeY = 0.66
-  
-rayDirX = np.zeros(1)
-rayDirY = np.zeros(1)
 
 def mainloop():
-    global screen_w, screen_h, screen, last_fps_tick, clock, keys
-    global mapWidth, mapHeight, worldMap, colors, colormap, defaultcolor
-    global color2, posX, posY, dirX, dirY, planeX, planeY, rayDirX, rayDirY
+
+    # x and y start position
+    posX = 22
+    posY = 12
+    #initial direction vector
+    dirX = -1
+    dirY = 0
+    # the 2d raycaster version of camera plane
+    planeX = 0
+    planeY = 0.66
+    # allocate these as numpy arrays to mask ZeroDivisionErrors
+    rayDirX = np.zeros(1)
+    rayDirY = np.zeros(1)
+    # for timing
+    last_fps_tick = 0
 
     done = False
     while not done:
