@@ -78,11 +78,16 @@ def mainloop():
                 # clip to viewport
                 if -grid_w < sx < screen_size[0] \
                         and -grid_h < sy < screen_size[1]:
-                    # offset tile properly
-                    sx -= tile.get_width() / 2 - 32
-                    sy -= tile.get_height() - 31
-                    # display on screen
-                    screen.blit(tile, (sx, sy))
+                    # cast a ray to determine visibility
+                    if visibility_test(camera, wx, wy):
+                        # offset tile properly
+                        sx -= tile.get_width() / 2 - 32
+                        sy -= tile.get_height() - 31
+                        # display on screen
+                        screen.blit(tile, (sx, sy))
+
+        # mark camera position
+        pygame.draw.circle(screen, pygame.Color('red'), (smx, smy), 5)
 
         # handle events
         for event in pygame.event.get():
@@ -125,6 +130,59 @@ def world_to_screen(camera, wx, wy):
     sx = smx + (wx + wy) * grid_w_half
     sy = smy + (wx - wy) * grid_h_half
     return sx, sy
+
+
+def visibility_test(camera, wx, wy):
+    """Determine whether camera can 'see' wx,wy via raycasting"""
+
+    # calculate ray position and direction
+    #
+    # FIXME not sure why the 0.5 is needed but it seems to ensure the rays
+    # always intersect the target instead of missing slightly
+    ray_pos = camera.copy() + 0.5
+    map_target = numpy.array([wx, wy], dtype=float)
+    ray_dir = map_target - camera
+
+    # which box of the map we're in
+    map_pos = camera.astype(int)
+
+    # length of ray from one x or y-side to next x or y-side
+    delta_dist_x = numpy.sqrt(1 + (ray_dir[1] / ray_dir[0]) ** 2)
+    delta_dist_y = numpy.sqrt(1 + (ray_dir[0] / ray_dir[1]) ** 2)
+
+    # is the target visible? (assume yes until a wall is hit)
+    visible = True
+
+    # calculate step and initial sideDist
+    if ray_dir[0] < 0:
+        step_x = -1
+        side_dist_x = (ray_pos[0] - map_pos[0]) * delta_dist_x
+    else:
+        step_x = 1
+        side_dist_x = (map_pos[0] + 1.0 - ray_pos[0]) * delta_dist_x
+    if ray_dir[1] < 0:
+        step_y = -1
+        side_dist_y = (ray_pos[1] - map_pos[1]) * delta_dist_y
+    else:
+        step_y = 1
+        side_dist_y = (map_pos[1] + 1.0 - ray_pos[1]) * delta_dist_y
+
+    # perform DDA
+    while numpy.any(map_pos != map_target):
+        # Check if ray has hit a wall (do this before jumping to help ensure the
+        # obstruction we hit is itself considered visible)
+        if world_map[map_pos[1],map_pos[0]] >= min_opaque:
+            visible = False
+            break
+        # jump to next map square, OR in x-direction, OR in y-direction
+        if side_dist_x < side_dist_y:
+            side_dist_x += delta_dist_x
+            map_pos[0] += step_x
+        else:
+            side_dist_y += delta_dist_y
+            map_pos[1] += step_y
+
+    return visible
 
 
 if __name__ == '__main__':
