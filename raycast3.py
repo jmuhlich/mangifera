@@ -45,11 +45,19 @@ worldMap = numpy.array([
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
         ], dtype=int)
 
-colors = ['red', 'green', 'blue', 'white']
-colormap = dict((i + 1, pygame.Color(c)) for i, c in enumerate(colors))
-defaultcolor = pygame.Color('#808080')
+#colors = ['red', 'green', 'blue', 'white']
+#colormap = dict((i + 1, pygame.Color(c)) for i, c in enumerate(colors))
+colors = [
+    ('origin', 'blue'),
+    ('obstruction', 'red'),
+    ('visfront', 'green'),
+    ('obscured', 'pink'),
+    ('visible', 'white'),
+    ('cut', 'gray25'),
+    ]
+colormap = dict((k, pygame.Color(v)) for k, v in colors)
 
-ray_font = pygame.font.Font(None, 15)
+ray_font = pygame.font.Font(None, 12)
 
 tileSize = min(screen_w / mapWidth, screen_h / mapHeight)
 mapOrigin = numpy.array([(screen_w - tileSize * mapWidth) / 2,
@@ -62,7 +70,7 @@ speedSlow = 1
 def mainloop():
 
     # x and y start position
-    camera = numpy.array([4.5, 8.5], dtype=float)
+    camera = numpy.array([4.5, 3.5], dtype=float)
     # allocate this as a numpy array to mask ZeroDivisionErrors
     rayDir = numpy.zeros(2)
     # for timing
@@ -81,13 +89,22 @@ def mainloop():
             for wx in range(mapWidth):
                 sx = mapOrigin[0] + wx * tileSize
                 sy = mapOrigin[1] + wy * tileSize
-                color = colormap.get(worldMap[wy, wx], defaultcolor)
                 rect = (sx, sy, tileSize, tileSize)
                 #if vis_map[wy, wx] or full_visibility:
                 #    screen.fill(color, rect)
-                if vis_map[wy, wx] == 0:
-                    color = darken(color)
-                screen.fill(color, rect) # XXX
+                if all(camera.astype('int') == (wx, wy)):
+                    color = 'origin'
+                elif worldMap[wy, wx]:
+                    color = 'obstruction'
+                elif vis_map[wy, wx] == 1:
+                    color = 'visible'
+                elif vis_map[wy, wx] == 2:
+                    color = 'obscured'
+                elif vis_map[wy, wx] == 3:
+                    color = 'visfront'
+                else:
+                    color = 'cut'
+                screen.fill(colormap[color], rect) # XXX
         if show_rays:
             visibility_test(camera, True)
 
@@ -176,7 +193,7 @@ def visibility_test(origin, show_rays=False):
     for radius in range(1, 20):
         for dx in range(radius + 1):
             dy = radius - dx
-            #if dx == 2 and dy == 1: import ipdb; ipdb.set_trace()
+            #if dx == 3 and dy == 1: import ipdb; ipdb.set_trace()
             wx = origin[0] + dx
             wy = origin[1] + dy
             if not (0 <= wx < mapWidth and 0 <= wy < mapHeight):
@@ -189,66 +206,68 @@ def visibility_test(origin, show_rays=False):
             cy2 = wy - 1
             hr1 = has_ray(cx1, cy1)
             hr2 = has_ray(cx2, cy2)
-            if ((dx == 0 and not hr2) or (dy == 0 and not hr1)):
-                # axis-aligned nodes only have one input, others have two
+            if (not hr1 and not hr2) or (dx == 0 and not hr2) or (dy == 0 and not hr1):
+                # all input nodes are propagating in the clear
                 vis_map[wy, wx] = 1
                 if tile:
                     # current tile is an obstruction
                     r[:] = (dx, dy, 0, 0)
-            elif not hr1 and not hr2:
-                # both input nodes are propagating in the clear
-                vis_map[wy, wx] = 1
-                if tile:
-                    # current tile is an obstruction
-                    r[:] = (dx, dy, 0, 0)
-            elif hr1 and hr2:
-                # both input nodes are obscured
-                #ray_map[wy, wx]['ex'] = 'inf' # only useful for the visualization
-                pass
+            #elif (dx == 0 and hr2) or (dy == 0 and hr1):
+            #    # all input nodes are obscured
+            #    r[:] = ('inf', 'inf', 0, 0)
+            #elif (hr1 and hr2) and (r['ey'] * 3 >= dx or r['ex'] * 3 >= dy):
+            #    # all input nodes are obscured
+            #    r[:] = ('inf', 'inf', 0, 0)
             elif hr1:
                 rc = ray_map[cy1, cx1]
-                r['dx'] = rc['dx']
-                r['dy'] = rc['dy']
-                r['ex'] -= dy
-                r['ey'] += dy
-                # if err_y > err_x:
-                #     ray_map[wy, wx, :2] = [0, 0]
-                #     vis_map[wy, wx] = 1
-                # else:
-                #     err_x -= obs_y
-                #     err_y += obs_y
-                #     ray_map[wy, wx] = [obs_x, obs_y, err_x, err_y]
-                #     if err_y > err_x:
-                #         vis_map[wy, wx] = 1
+                r['ex'] = rc['ex'] - dy
+                r['ey'] = rc['ey'] + dy
+                if r['ey'] * 2 >= dx:
+                    # this node is off the line (error too high)
+                    vis_map[wy, wx] = 1
+                    if tile:
+                        r[:] = (dx, dy, 0, 0)
+                    else:
+                        r['dx'] = rc['dx']
+                        r['dy'] = rc['dy']
+                else:
+                    if tile and dy*rc['dx'] < rc['dy']*dx:
+                        # new obstruction with shallower slope takes over (FIXME: is that right?)
+                        r[:] = (dx, dy, 0, 0)
+                    else:
+                        vis_map[wy, wx] = 2
+                        r['dx'] = rc['dx']
+                        r['dy'] = rc['dy']
             else:  # has_ray(cx2, cy2) must be true
                 rc = ray_map[cy2, cx2]
-                r['dx'] = rc['dx']
-                r['dy'] = rc['dy']
-                r['ex'] += dx
-                r['ey'] -= dx
-            #     obs_x, obs_y, err_x, err_y = ray_map[cy2, cx2]
-            #     if tile:
-            #         ray_map[wy, wx] = [dx, dy, dx, dy]
-            #         vis_map[wy, wx] = 1
-            #     elif err_x > err_y:
-            #         ray_map[wy, wx, :2] = [0, 0]
-            #         vis_map[wy, wx] = 1
-            #     else:
-            #         err_x += obs_x
-            #         err_y -= obs_x
-            #         ray_map[wy, wx] = [obs_x, obs_y, err_x, err_y]
-            #         if err_x > err_y:
-            #             vis_map[wy, wx] = 1
+                r['ex'] = rc['ex'] + dx
+                r['ey'] = rc['ey'] - dx
+                if r['ex'] * 2 >= dy:
+                    # this node is off the line (error too high)
+                    vis_map[wy, wx] = 1
+                    if tile:
+                        r[:] = (dx, dy, 0, 0)
+                    else:
+                        r['dx'] = rc['dx']
+                        r['dy'] = rc['dy']
+                else:
+                    if tile and dy*rc['dx'] > rc['dy']*dx:
+                        # new obstruction with steeper slope takes over (FIXME: is that right?)
+                        r[:] = (dx, dy, 0, 0)
+                    else:
+                        vis_map[wy, wx] = 2
+                        r['dx'] = rc['dx']
+                        r['dy'] = rc['dy']
 
-            str1 = '%.1f,%.1f' % (r['dx'], r['dy'])
-            str2 = '%.1f,%.1f' % (r['ex'], r['ey'])
-            sx = wx * tileSize + mapOrigin[0] + 2
-            sy = wy * tileSize + mapOrigin[1] + 2
-            tsurf = ray_font.render(str1, True, (80,80,80,255))
-            screen.blit(tsurf, (sx, sy))
-            tsurf = ray_font.render(str2, True, (80,80,80,255))
-            screen.blit(tsurf, (sx, sy + ray_font.get_height() + 1))
-            #pygame.display.flip()
+            if show_rays:
+                str1 = '%.1f,%.1f' % (r['dx'], r['dy'])
+                str2 = '%.1f,%.1f' % (r['ex'], r['ey'])
+                sx = wx * tileSize + mapOrigin[0] + 2
+                sy = wy * tileSize + mapOrigin[1] + 2
+                tsurf = ray_font.render(str1, True, (80,80,80,255))
+                screen.blit(tsurf, (sx, sy))
+                tsurf = ray_font.render(str2, True, (80,80,80,255))
+                screen.blit(tsurf, (sx, sy + ray_font.get_height() + 1))
 
     return vis_map
 
