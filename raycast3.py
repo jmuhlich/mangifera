@@ -184,7 +184,7 @@ def visibility_test(origin, show_rays=False):
 
     # worldy, worldx, obstructionx/obstructiony/errorx/errory
     ray_map = numpy.empty(worldMap.shape, dtype=raymap_dtype)
-    ray_map.fill((0,) * 4)
+    ray_map.fill(0)
 
     origin = origin.astype(int)
 
